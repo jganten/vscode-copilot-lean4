@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import { capy1ChatHandler } from './handler';
-import { generateFollowups } from './followups';
-import { handleFeedback } from './feedbackhandler';
+import { capy1ChatHandler, generateFollowups, handleFeedback} from './handler';
 import { Logger } from '../utils/logging';
 
 /**
