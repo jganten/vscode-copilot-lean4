@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { getUserPrompt, addReferencesToPrompt } from './references';
 import { getSystemPrompt } from './prompts';
 import { Logger } from '../utils/logging';
-import { ChatResult } from './types';
+import { ChatResult, ChatMetadata } from './types';
 
 /**
  * Selects the appropriate model, falling back to GPT-4o if the current model isn't suitable
@@ -72,10 +72,11 @@ export async function capy1ChatHandler(
             };
         }
         
-        await handleChatRequest(requestId, request, stream, token, model);
+        const chatResult = await handleChatRequest(requestId, request, stream, token, model);
         
         return {
-            success: true,
+            success: chatResult.success,
+            error: chatResult.error,
             metadata: {
                 command: request.command,
                 modelUsed: model.name,
@@ -84,7 +85,7 @@ export async function capy1ChatHandler(
         };
     } catch (error) {
         Logger.error(`[${requestId}] Handler error`, error);
-        stream.markdown("An error occurred while processing your request.");
+        stream.markdown("An unexpected error occurred while processing your request.");
         return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
@@ -94,6 +95,11 @@ export async function capy1ChatHandler(
     }
 }
 
+/**
+ * Handles the 'listmodels' command by listing available chat models.
+ * @param requestId The ID of the request.
+ * @param stream The chat response stream to write the model list to.
+ */
 async function handleListModels(requestId: string, stream: vscode.ChatResponseStream) {
     const models = await vscode.lm.selectChatModels();
     Logger.info(`[${requestId}] Listing models`);
@@ -101,34 +107,46 @@ async function handleListModels(requestId: string, stream: vscode.ChatResponseSt
     await stream.markdown(`Available models:\n${modelNames}`);
 }
 
-// Update handleChatRequest to use the model from request:
+/**
+ * Handles a chat request by sending it to the chat model and streaming the response.
+ * @param requestId The ID of the request.
+ * @param request The chat request to handle.
+ * @param stream The chat response stream to write the response to.
+ * @param token The cancellation token.
+ * @param model The language model to use for the chat request.
+ */
 async function handleChatRequest(
     requestId: string,
     request: vscode.ChatRequest,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
     model: vscode.LanguageModelChat
-) {
+): Promise<ChatResult> {
     const userPrompt = getUserPrompt(request);
-    const messages = [
-        getSystemPrompt(),
-        vscode.LanguageModelChatMessage.User(userPrompt)
-    ];
+    const messages: vscode.LanguageModelChatMessage[] = [];
 
     addReferencesToPrompt(request, messages);
+
+    messages.push(getSystemPrompt());
+    messages.push(vscode.LanguageModelChatMessage.User(userPrompt));
 
     try {
         const chatResponse = await model.sendRequest(messages, {}, token);
         if (!chatResponse?.text) {
-            throw new Error("Empty response from chat model");
+            Logger.warn(`[${requestId}] Empty response from chat model`);
+            stream.markdown("The chat model returned an empty response.");
+            return { success: false, error: "Empty response from chat model" };
         }
         
         for await (const fragment of chatResponse.text) {
             stream.markdown(fragment);
         }
+        addReferencesToResponse(request, stream);
+        return { success: true };
     } catch (error) {
         Logger.error(`[${requestId}] Error during chat model request`, error);
         stream.markdown("An error occurred while processing your request.");
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
 }
 

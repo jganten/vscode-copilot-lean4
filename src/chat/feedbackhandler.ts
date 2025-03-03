@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
 
+/**
+ * Handles feedback received from the user about a chat result.
+ * @param feedback The feedback object containing the feedback kind and other details.
+ */
 export function handleFeedback(feedback: vscode.ChatResultFeedback) {
     Logger.info('Feedback received', feedback);
 

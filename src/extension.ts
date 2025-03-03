@@ -3,8 +3,11 @@
 import * as vscode from 'vscode';
 import { registerChatParticipant } from './chat/participant';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+/**
+ * This method is called when your extension is activated.
+ * Your extension is activated the very first time the command is executed.
+ * @param context The extension context.
+ */
 export function activate(context: vscode.ExtensionContext) {
     console.log('Congratulations, your extension "vscode-copilot-lean4" is now active!');
     
@@ -19,5 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
+/**
+ * This method is called when your extension is deactivated.
+ */
 export function deactivate() {}

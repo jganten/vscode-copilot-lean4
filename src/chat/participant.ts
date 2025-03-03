@@ -4,6 +4,11 @@ import { generateFollowups } from './followups';
 import { handleFeedback } from './feedbackhandler';
 import { Logger } from '../utils/logging';
 
+/**
+ * Registers the chat participant with VS Code.
+ * @param context The extension context.
+ * @returns The registered chat participant.
+ */
 export function registerChatParticipant(context: vscode.ExtensionContext) {
     Logger.info('Registering chat participant');
     
