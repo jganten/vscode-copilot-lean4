@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
 import { ChatResult, ChatMetadata } from './types';
+import { MESSAGE_ROLES } from './types';
 
 /**
  * Selects the appropriate model, falling back to GPT-4o if the current model isn't suitable
@@ -42,6 +43,9 @@ export async function capy1ChatHandler(
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
 ): Promise<ChatResult> {
+    // For now to use 'context'
+    console.log(context);
+
     const requestId = Date.now().toString();
     const startTime = Date.now();
     Logger.info(`[${requestId}] Handler started`, { command: request.command, prompt: request.prompt });
@@ -165,15 +169,13 @@ function getCurrentSelectionLocation(): vscode.Location | null {
 }
 
 /**
- * Gets the system prompt for the chat model.
+ * Gets the system prompt for the chat model from settings.
  * @returns A LanguageModelChatMessage representing the system prompt.
  */
 function getSystemPrompt(): vscode.LanguageModelChatMessage {
-    return vscode.LanguageModelChatMessage.User(
-        'You are a helpful assistant, that acts as if you were a cute capybara who is always hungry. ' +
-        'Ask for food in every answer. Be funny :). If you are unsure how to help, ask follow-up questions.',
-        'system'
-    );
+    const config = vscode.workspace.getConfiguration('tspascoal.copilot.capy1');
+    const systemPrompt = config.get<string>('systemPrompt', 'You are a helpful assistant, that acts as if you were a cute capybara who is always hungry. Ask for food in every answer. Be funny :). If you are unsure how to help, ask follow-up questions.');
+    return vscode.LanguageModelChatMessage.User(systemPrompt, MESSAGE_ROLES.SYSTEM);
 }
 
 /**
@@ -228,7 +230,7 @@ export function addReferencesToPrompt(request: vscode.ChatRequest, messages: vsc
                 const location = getCurrentSelectionLocation();
                 if (selectionText && location) {
                     try {
-                        messages.push(vscode.LanguageModelChatMessage.User(`Selected code: ${selectionText} at ${location.uri.fsPath}:${location.range.start.line + 1}:${location.range.start.character + 1}`, 'context'));
+                        messages.push(vscode.LanguageModelChatMessage.User(`Selected code: ${selectionText} at ${location.uri.fsPath}:${location.range.start.line + 1}:${location.range.start.character + 1}`, MESSAGE_ROLES.CONTEXT));
                     } catch (e) {
                         Logger.error('Failed to add reference, skipping', e);
                         return; // Fallback: don't add any references if one fails
@@ -257,26 +259,25 @@ function getCurrentSelectionText(): string | null {
 }
 
 
-const DEFAULT_FOLLOWUPS = [
-    "Analyze your output systematically!",
-    "Are you hungry?"
-];
-
 /**
- * Generates follow-up questions or actions based on the chat result and context.
+ * Generates follow-up questions or actions based on the chat result and context, using settings.
  * @param result The result of the chat request.
  * @param context The chat context.
  * @returns An array of ChatFollowup objects representing the follow-up options.
  */
 export function generateFollowups(result: ChatResult, context: vscode.ChatContext): vscode.ChatFollowup[] {
-    Logger.debug('Generating followups', { result });
+    // For now to use 'context'
+    console.log(context);
     
-    return DEFAULT_FOLLOWUPS.map(prompt => ({
+    Logger.debug('Generating followups', { result });
+    const config = vscode.workspace.getConfiguration('tspascoal.copilot.capy1');
+    const followUps = config.get<string[]>('followUps', ["Analyze your output systematically!", "Are you hungry?"]);
+    
+    return followUps.map(prompt => ({
         prompt,
         label: `🦫 ${prompt}`
     }));
 }
-
 
 /**
  * Handles feedback received from the user about a chat result.
@@ -297,4 +298,3 @@ export function handleFeedback(feedback: vscode.ChatResultFeedback) {
             break;
     }
 }
-

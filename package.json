@@ -48,6 +48,19 @@
           "type": "boolean",
           "default": true,
           "description": "Enable or disable Capy1's special speaking mode."
+        },
+        "tspascoal.copilot.capy1.systemPrompt": {
+          "type": "string",
+          "default": "You are a helpful assistant, that acts as if you were a cute capybara who is always hungry. Ask for food in every answer. Be funny :). If you are unsure how to help, ask follow-up questions.",
+          "description": "The system prompt for the chat model."
+        },
+        "tspascoal.copilot.capy1.followUps": {
+          "type": "array",
+          "default": [
+            "Analyze your output systematically!",
+            "Are you hungry?"
+          ],
+          "description": "A list of standard follow-up prompts."
         }
       }
     }
