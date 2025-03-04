@@ -10,8 +10,8 @@ import { ChatResult, MESSAGE_ROLES } from './prompt';
 export function registerChatParticipant(context: vscode.ExtensionContext) {
     Logger.info('Registering chat participant');
     
-    const participant = vscode.chat.createChatParticipant('tspascoal.copilot.capy1', capy1ChatHandler);
-    participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'capy1.jpg');
+    const participant = vscode.chat.createChatParticipant('lean4.copilot', lean4CopilotChatHandler);
+    participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'lean4CopilotIcon.png');
     
     // Add followup provider
     participant.followupProvider = {
@@ -51,7 +51,7 @@ async function selectAppropriateModel(
 }
 
 /**
- * Handles chat requests for the Capy1 participant.
+ * Handles chat requests for the lean4Copilot chat participant.
  * @param request The incoming chat request
  * @param context The chat context containing history
  * @param stream The response stream to write to
@@ -59,7 +59,7 @@ async function selectAppropriateModel(
  * @returns Promise<ChatResult>
  * @throws Error if model is not available or response fails
  */
-export async function capy1ChatHandler(
+export async function lean4CopilotChatHandler(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
@@ -82,9 +82,10 @@ export async function capy1ChatHandler(
         let model = await selectAppropriateModel(requestId, request.model);
         Logger.debug(`[${requestId}] Using model:`, model.name);
         
-        stream.progress("capy1 is chewing on your request...");
+        stream.progress("lean4Copilot is busy thinking...");
         
-        if (request.command === 'listmodels') {
+        
+        if (request.command === 'listModels') {
             await handleListModels(requestId, stream);
             return {
                 success: true,
@@ -195,8 +196,14 @@ function getCurrentSelectionLocation(): vscode.Location | null {
  * @returns A LanguageModelChatMessage representing the system prompt.
  */
 function getSystemPrompt(): vscode.LanguageModelChatMessage {
-    const config = vscode.workspace.getConfiguration('tspascoal.copilot.capy1');
-    const systemPrompt = config.get<string>('systemPrompt', 'You are a helpful assistant, that acts as if you were a cute capybara who is always hungry. Ask for food in every answer. Be funny :). If you are unsure how to help, ask follow-up questions.');
+    const config = vscode.workspace.getConfiguration('lean4.copilot');
+    const defaultPrompt = 'You are a helpful math assistant for the lean4 theorem prover!';
+    const systemPrompt = config.get<string>('systemPrompt', defaultPrompt);
+    
+    if (systemPrompt === defaultPrompt) {
+        Logger.warn('Using fallback system prompt');
+    }
+    
     return vscode.LanguageModelChatMessage.User(systemPrompt, MESSAGE_ROLES.SYSTEM);
 }
 
@@ -292,12 +299,17 @@ export function generateFollowups(result: ChatResult, context: vscode.ChatContex
     console.log(context);
     
     Logger.debug('Generating followups', { result });
-    const config = vscode.workspace.getConfiguration('tspascoal.copilot.capy1');
-    const followUps = config.get<string[]>('followUps', ["Analyze your output systematically!", "Are you hungry?"]);
+    const config = vscode.workspace.getConfiguration('lean4.copilot');
+    const defaultFollowUps = ["Explain this code in detail.", "Suggest possible improvements."];
+    const followUps = config.get<string[]>('lean4.copilot.followUps', defaultFollowUps);
+    
+    if (followUps === defaultFollowUps) {
+        Logger.warn('Using fallback follow-up prompts');
+    }
     
     return followUps.map(prompt => ({
         prompt,
-        label: `🦫 ${prompt}`
+        label: `➕ ${prompt}`
     }));
 }
 
@@ -310,10 +322,10 @@ export function handleFeedback(feedback: vscode.ChatResultFeedback) {
 
     switch (feedback.kind) {
         case vscode.ChatResultFeedbackKind.Helpful:
-            vscode.window.showInformationMessage('🦫 *happy chewing noises* Thank you for the positive feedback!');
+            vscode.window.showInformationMessage('Thank you for the positive feedback (not processed for now)!');
             break;
         case vscode.ChatResultFeedbackKind.Unhelpful:
-            vscode.window.showWarningMessage('🦫 *sad chewing noises* Sorry the response wasn\'t helpful.');
+            vscode.window.showWarningMessage('Sorry the response wasn\'t helpful. Feel free to contact (not processed automatically for now).');
             break;
         default:
             Logger.warn('Unknown feedback type received', feedback);

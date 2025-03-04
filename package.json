@@ -11,8 +11,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:tspascoal.copilot.capy1.listmodels",
-    "onCommand:tspascoal.copilot.capy1.tescht"
+    "onCommand:lean4.copilot.listModels",
+    "onCommand:lean4.copilot.testCommand"
   ],
   "extensionDependencies": [
     "github.copilot",
@@ -22,43 +22,43 @@
   "contributes": {    
     "chatParticipants": [
       {
-        "id": "tspascoal.copilot.capy1",
-        "name": "capy1",
-        "fullName": "Capy1",
-        "description": "Capy1 assists with Copilot for Lean 4 by providing LLM interaction.",
+        "id": "lean4.copilot",
+        "name": "lean4Copilot",
+        "fullName": "Lean 4 Copilot",
+        "description": "Lean4Copilot assists with Copilot for Lean 4 by providing LLM interaction.",
         "isSticky": true,
         "commands": [
           {
-            "name": "listmodels",
-            "when": "config.tspascoal.copilot.capy1.like.enabled",
+            "name": "listModels",
+            "when": "config.lean4.copilot.enabled",
             "description": "List the available LLM models."
           },
           {
-            "name": "tescht",
-            "when": "config.tspascoal.copilot.capy1.like.enabled",
+            "name": "testCommand",
+            "when": "config.lean4.copilot.enabled",
             "description": "Run a test command."
           }
         ]
       }
     ],
     "configuration": {
-      "title": "Capy1 Settings",
+      "title": "Lean4 Copilot Settings",
       "properties": {
-        "tspascoal.copilot.capy1.like.enabled": {
+        "lean4.copilot.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable or disable Capy1's special speaking mode."
+          "description": "Automatic use of Tools like Loogle."
         },
-        "tspascoal.copilot.capy1.systemPrompt": {
+        "lean4.copilot.systemPrompt": {
           "type": "string",
-          "default": "You are a helpful assistant, that acts as if you were a cute capybara who is always hungry. Ask for food in every answer. Be funny :). If you are unsure how to help, ask follow-up questions.",
+          "default": "You are a helpful assistant for Lean 4 and Mathlib4. Provide accurate and concise answers. If you are unsure how to help, ask follow-up questions.",
           "description": "The system prompt for the chat model."
         },
-        "tspascoal.copilot.capy1.followUps": {
+        "lean4.copilot.followUps": {
           "type": "array",
           "default": [
-            "Analyze your output systematically!",
-            "Are you hungry?"
+            "Explain this code in detail.",
+            "Suggest possible improvements."
           ],
           "description": "A list of standard follow-up prompts."
         }
