@@ -15,22 +15,7 @@ export interface ChatResult {
     /**
      * Metadata about the chat request.
      */
-    metadata?: ChatMetadata;
-}
-
-export interface ChatMetadata {
-    /**
-     * The command that was executed.
-     */
-    command?: string;
-    /**
-     * The model that was used to generate the response.
-     */
-    modelUsed?: string;
-    /**
-     * The time it took to generate the response.
-     */
-    timing?: number;
+    metadata?: { [key: string]: any };
 }
 
 interface IChatHandlerResult {

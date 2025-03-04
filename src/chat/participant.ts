@@ -121,15 +121,34 @@ export async function lean4CopilotChatHandler(
 }
 
 /**
- * Handles the 'listmodels' command by listing available chat models.
+ * Handles the 'listModels' command by listing available chat models.
  * @param requestId The ID of the request.
  * @param stream The chat response stream to write the model list to.
+ * @returns Promise<ChatResult> The result of the list models command.
  */
-async function handleListModels(requestId: string, stream: vscode.ChatResponseStream) {
+async function handleListModels(requestId: string, stream: vscode.ChatResponseStream): Promise<ChatResult> {
     const models = await vscode.lm.selectChatModels();
     Logger.info(`[${requestId}] Listing models`);
-    const modelNames = models.map(model => model.name).join(',\n ');
-    await stream.markdown(`Available models:\n${modelNames}`);
+
+    if (models.length === 0) {
+        await stream.markdown('No models available.');
+        return { success: true, metadata: {} };
+    }
+
+    // Create the header of the markdown table
+    let tableHeader = '| Name | Max Input Tokens |\n|---|---|';
+    let tableRows = '';
+
+    // Add each model as a row in the table
+    for (const model of models) {
+        const maxInputTokens = model.maxInputTokens ? `${Math.round(model.maxInputTokens / 1000)}k` : 'N/A';
+        tableRows += `\n| ${model.name} | ${maxInputTokens} |`;
+    }
+
+    const markdownTable = tableHeader + tableRows;
+    await stream.markdown(`Available models:\n${markdownTable}`);
+
+    return { success: true, metadata: { modelCount: models.length } };
 }
 
 /**
@@ -167,7 +186,7 @@ async function handleChatRequest(
             stream.markdown(fragment);
         }
         addReferencesToResponse(request, stream);
-        return { success: true };
+        return { success: true, metadata: {} };
     } catch (error) {
         Logger.error(`[${requestId}] Error during chat model request`, error);
         stream.markdown("An error occurred while processing your request.");
