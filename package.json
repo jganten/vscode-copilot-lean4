@@ -19,7 +19,7 @@
     "github.copilot-chat"
   ],
   "main": "./dist/extension.js",
-  "contributes": {    
+  "contributes": {
     "chatParticipants": [
       {
         "id": "lean4.copilot",
@@ -34,9 +34,9 @@
             "description": "List the available LLM models."
           },
           {
-            "name": "testCommand",
+            "name": "listTools",
             "when": "config.lean4.copilot.enabled",
-            "description": "Run a test command."
+            "description": "List the available Tools for lean4Copilot."
           }
         ]
       }
