@@ -1,6 +1,23 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
-import { ChatResult, MESSAGE_ROLES } from './prompt';
+import { renderPrompt } from '@vscode/prompt-tsx';
+import { ToolCallRound, lean4ChatResult, ToolResultMetadata, lean4UserPrompt, MESSAGE_ROLES } from './lean4Prompt';
+
+export interface TsxToolUserMetadata {
+    toolCallsMetadata: ToolCallsMetadata;
+}
+
+export interface ToolCallsMetadata {
+    toolCallRounds: ToolCallRound[];
+    toolCallResults: Record<string, vscode.LanguageModelToolResult>;
+}
+
+export function isTsxToolUserMetadata(obj: unknown): obj is TsxToolUserMetadata {
+    // If you change the metadata format, you would have to make this stricter or handle old objects in old ChatRequest metadata
+    return !!obj &&
+        !!(obj as TsxToolUserMetadata).toolCallsMetadata &&
+        Array.isArray((obj as TsxToolUserMetadata).toolCallsMetadata.toolCallRounds);
+}
 
 /**
  * Registers the chat participant with VS Code.
@@ -56,7 +73,7 @@ async function selectAppropriateModel(
  * @param context The chat context containing history
  * @param stream The response stream to write to
  * @param token Cancellation token
- * @returns Promise<ChatResult>
+ * @returns Promise<ICatChatResult>
  * @throws Error if model is not available or response fails
  */
 export async function lean4CopilotChatHandler(
@@ -64,10 +81,7 @@ export async function lean4CopilotChatHandler(
     context: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
-): Promise<ChatResult> {
-    // For now to use 'context'
-    console.log(context);
-
+): Promise<lean4ChatResult> {
     const requestId = Date.now().toString();
     const startTime = Date.now();
     Logger.info(`[${requestId}] Handler started`, { command: request.command, prompt: request.prompt });
@@ -78,61 +92,54 @@ export async function lean4CopilotChatHandler(
             Logger.info(`[${requestId}] Request cancelled`);
             throw new Error('Request cancelled');
         });
+        
+        stream.progress("lean4Copilot is busy thinking...");
+
+        // Direct output commands
+        switch (request.command) {
+            case 'listTools':
+            return await listToolsCommand(stream);
+            case 'listModels':
+            return await listModelsCommand(requestId, stream);
+        }
 
         let model = await selectAppropriateModel(requestId, request.model);
         Logger.debug(`[${requestId}] Using model:`, model.name);
         
-        stream.progress("lean4Copilot is busy thinking...");
-        
-        
-        if (request.command === 'listModels') {
-            await handleListModels(requestId, stream);
-            return {
-                success: true,
-                metadata: {
-                    command: request.command,
-                    // just a list command no model used
-                    timing: Date.now() - startTime
-                }
-            };
-        }
-        
-        const chatResult = await handleChatRequest(requestId, request, stream, token, model);
-        
-        return {
-            success: chatResult.success,
-            error: chatResult.error,
-            metadata: {
-                command: request.command,
-                modelUsed: model.name,
-                timing: Date.now() - startTime
-            }
-        };
+        return await handleChatRequest(requestId, request, context, stream, token, model);
     } catch (error) {
         Logger.error(`[${requestId}] Handler error`, error);
         stream.markdown("An unexpected error occurred while processing your request.");
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
+            errorDetails: {message: error instanceof Error ? error.message : 'Unknown error',
+                responseIsFiltered: false
+            },
+            metadata: {}
         };
     } finally {
         Logger.info(`[${requestId}] Handler completed`);
     }
 }
 
+async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lean4ChatResult> {
+    stream.markdown(`Available tools: ${vscode.lm.tools.map(tool => tool.name).join(', ')}\n\n`);
+    return { success: true, metadata: { command: 'list' } };
+}
+
 /**
  * Handles the 'listModels' command by listing available chat models.
  * @param requestId The ID of the request.
  * @param stream The chat response stream to write the model list to.
- * @returns Promise<ChatResult> The result of the list models command.
+ * @returns Promise<ICatChatResult> The result of the list models command.
  */
-async function handleListModels(requestId: string, stream: vscode.ChatResponseStream): Promise<ChatResult> {
+async function listModelsCommand(requestId: string, stream: vscode.ChatResponseStream): Promise<lean4ChatResult> {
     const models = await vscode.lm.selectChatModels();
     Logger.info(`[${requestId}] Listing models`);
 
     if (models.length === 0) {
         await stream.markdown('No models available.');
-        return { success: true, metadata: {} };
+        return { success: true, metadata: {command : 'listModels'} };
     }
 
     // Create the header of the markdown table
@@ -155,6 +162,7 @@ async function handleListModels(requestId: string, stream: vscode.ChatResponseSt
  * Handles a chat request by sending it to the chat model and streaming the response.
  * @param requestId The ID of the request.
  * @param request The chat request to handle.
+ * @param chatContext The chat context containing history.
  * @param stream The chat response stream to write the response to.
  * @param token The cancellation token.
  * @param model The language model to use for the chat request.
@@ -162,36 +170,96 @@ async function handleListModels(requestId: string, stream: vscode.ChatResponseSt
 async function handleChatRequest(
     requestId: string,
     request: vscode.ChatRequest,
+    chatContext: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken,
     model: vscode.LanguageModelChat
-): Promise<ChatResult> {
-    const userPrompt = getUserPrompt(request);
-    const messages: vscode.LanguageModelChatMessage[] = [];
+): Promise<lean4ChatResult> {
+    const options: vscode.LanguageModelChatRequestOptions = {};
+    const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
+    const toolCallRounds: ToolCallRound[] = [];
+    let messages: vscode.LanguageModelChatMessage[] = [];
 
-    addReferencesToPrompt(request, messages);
+    console.log(`[${requestId}] Handling chat request...`);
 
-    messages.push(getSystemPrompt());
-    messages.push(vscode.LanguageModelChatMessage.User(userPrompt));
+    const runWithTools = async (): Promise<lean4ChatResult> => {
+        // Render the prompt
+        const result = await renderPrompt(
+            lean4UserPrompt,
+            {
+                request: request,
+                context: chatContext,
+                toolCallRounds: toolCallRounds,
+                toolCallResults: accumulatedToolResults
+            },
+            { modelMaxPromptTokens: model.maxInputTokens },
+            model
+        );
+        messages = result.messages;
+    
+        result.references.forEach(ref => {
+            if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
+                stream.reference(ref.anchor);
+            }
+        });
 
-    try {
-        const chatResponse = await model.sendRequest(messages, {}, token);
-        if (!chatResponse?.text) {
-            Logger.warn(`[${requestId}] Empty response from chat model`);
-            stream.markdown("The chat model returned an empty response.");
-            return { success: false, error: "Empty response from chat model" };
+        // Send the request to the LanguageModelChat
+        const response = await model.sendRequest(messages, options, token);
+
+        // Stream text output and collect tool calls from the response
+        const toolCalls: vscode.LanguageModelToolCallPart[] = [];
+        let responseStr = '';
+        for await (const part of response.stream) {
+            if (part instanceof vscode.LanguageModelTextPart) {
+                stream.markdown(part.value);
+                responseStr += part.value;
+            } else if (part instanceof vscode.LanguageModelToolCallPart) {
+                toolCalls.push(part);
+            }
         }
-        
-        for await (const fragment of chatResponse.text) {
-            stream.markdown(fragment);
+
+        if (toolCalls.length) {
+            // If the model called any tools, then we do another round- render the prompt with those tool calls (rendering the PromptElements will invoke the tools)
+            // and include the tool results in the prompt for the next request.
+            toolCallRounds.push({
+                response: responseStr,
+                toolCalls
+            });
+
+            // Invoke tools and cache results
+            for (const toolCall of toolCalls) {
+                const tool = vscode.lm.tools.find(t => t.name === toolCall.name);
+                if (!tool) {
+                    Logger.error(`Tool not found: ${toolCall.name}`);
+                    accumulatedToolResults[toolCall.callId] = { content: ['Tool not found'] };
+                    continue;
+                }
+                try {
+                    const toolResult = await vscode.lm.invokeTool(toolCall.name, { input: toolCall.input, toolInvocationToken: request.toolInvocationToken }, token);
+                    accumulatedToolResults[toolCall.callId] = toolResult;
+                } catch (e: any) {
+                    Logger.error(`Error invoking tool ${toolCall.name}: ${e.message}`);
+                    accumulatedToolResults[toolCall.callId] = { content: [`Error invoking tool: ${e.message}`] };
+                }
+            }
+            // This loops until the model doesn't want to call any more tools, then the request is done.
+            return runWithTools();
+        } else {
+            // No tool calls, so we're done
+            return {
+                success: true,
+                metadata: {
+                    // Return tool call metadata so it can be used in prompt history on the next request
+                    toolCallsMetadata: {
+                        toolCallResults: accumulatedToolResults,
+                        toolCallRounds
+                    }  satisfies ToolCallsMetadata,
+                }
+            };
         }
-        addReferencesToResponse(request, stream);
-        return { success: true, metadata: {} };
-    } catch (error) {
-        Logger.error(`[${requestId}] Error during chat model request`, error);
-        stream.markdown("An error occurred while processing your request.");
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-    }
+    };
+
+    return await runWithTools();
 }
 
 /**
@@ -236,17 +304,17 @@ function getSystemPrompt(): vscode.LanguageModelChatMessage {
  * @param stream - The chat response stream to which references will be added.
  */
 function addReferencesToResponse(request: vscode.ChatRequest, stream: vscode.ChatResponseStream) {
-	// Add the explicit refererences passed as references
-	for (const ref of request.references) {
-		const reference: any = ref; // Cast to any, to get the name property, it's not in the type
-		if (reference.id === 'copilot.selection') {  // Inplicit references are of type copilot.selection
+    // Add the explicit refererences passed as references
+    for (const ref of request.references) {
+        const reference: any = ref; // Cast to any, to get the name property, it's not in the type
+        if (reference.id === 'copilot.selection') {  // Inplicit references are of type copilot.selection
 
-			const location = getCurrentSelectionLocation();
-			if (location) {
-				stream.reference(location);
-			}
-		}
-	}
+            const location = getCurrentSelectionLocation();
+            if (location) {
+                stream.reference(location);
+            }
+        }
+    }
 }
 
 /**
@@ -306,21 +374,20 @@ function getCurrentSelectionText(): string | null {
     return editor.document.getText(editor.selection);
 }
 
-
 /**
  * Generates follow-up questions or actions based on the chat result and context, using settings.
  * @param result The result of the chat request.
  * @param context The chat context.
  * @returns An array of ChatFollowup objects representing the follow-up options.
  */
-export function generateFollowups(result: ChatResult, context: vscode.ChatContext): vscode.ChatFollowup[] {
+export function generateFollowups(result: lean4ChatResult, context: vscode.ChatContext): vscode.ChatFollowup[] {
     // For now to use 'context'
     console.log(context);
     
     Logger.debug('Generating followups', { result });
     const config = vscode.workspace.getConfiguration('lean4.copilot');
     const defaultFollowUps = ["Explain this code in detail.", "Suggest possible improvements."];
-    const followUps = config.get<string[]>('lean4.copilot.followUps', defaultFollowUps);
+    const followUps = config.get<string[]>('followUps', defaultFollowUps);
     
     if (followUps === defaultFollowUps) {
         Logger.warn('Using fallback follow-up prompts');
