@@ -1,3 +1,14 @@
+/**
+ * This file defines the chat participant for the Lean 4 Copilot extension.
+ * It handles chat requests, manages tool interactions, and provides follow-up suggestions.
+ *
+ * Key components:
+ * - `registerChatParticipant`: Registers the chat participant with VS Code.
+ * - `lean4CopilotChatHandler`: Handles incoming chat requests.
+ * - `listToolsCommand`, `listModelsCommand`: Commands for listing available tools and models.
+ * - `handleChatRequest`: Orchestrates the chat request processing, including tool execution.
+ * - Utility functions for managing selections, prompts, and follow-ups.
+ */
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
 import { renderPrompt } from '@vscode/prompt-tsx';
@@ -12,6 +23,11 @@ export interface ToolCallsMetadata {
     toolCallResults: Record<string, vscode.LanguageModelToolResult>;
 }
 
+/**
+ * Type guard to check if an object is of type `TsxToolUserMetadata`.
+ * @param obj The object to check.
+ * @returns `true` if the object is `TsxToolUserMetadata`, `false` otherwise.
+ */
 export function isTsxToolUserMetadata(obj: unknown): obj is TsxToolUserMetadata {
     // If you change the metadata format, you would have to make this stricter or handle old objects in old ChatRequest metadata
     return !!obj &&
@@ -43,7 +59,10 @@ export function registerChatParticipant(context: vscode.ExtensionContext) {
 }
 
 /**
- * Selects the appropriate model, falling back to GPT-4o if the current model isn't suitable
+ * Selects the appropriate model, falling back to GPT-4o if the current model isn't suitable.
+ * @param requestId The ID of the request.
+ * @param currentModel The currently selected language model.
+ * @returns A promise that resolves to the appropriate language model.
  */
 async function selectAppropriateModel(
     requestId: string,
@@ -69,12 +88,12 @@ async function selectAppropriateModel(
 
 /**
  * Handles chat requests for the lean4Copilot chat participant.
- * @param request The incoming chat request
- * @param context The chat context containing history
- * @param stream The response stream to write to
- * @param token Cancellation token
- * @returns Promise<ICatChatResult>
- * @throws Error if model is not available or response fails
+ * @param request The incoming chat request.
+ * @param context The chat context containing history.
+ * @param stream The response stream to write to.
+ * @param token Cancellation token.
+ * @returns A promise that resolves to a `lean4ChatResult`.
+ * @throws Error if model is not available or response fails.
  */
 export async function lean4CopilotChatHandler(
     request: vscode.ChatRequest,
@@ -122,6 +141,11 @@ export async function lean4CopilotChatHandler(
     }
 }
 
+/**
+ * Handles the 'listTools' command by listing available tools.
+ * @param stream The chat response stream to write the tool list to.
+ * @returns A promise that resolves to a `lean4ChatResult`.
+ */
 async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lean4ChatResult> {
     stream.markdown(`Available tools: ${vscode.lm.tools.map(tool => tool.name).join(', ')}\n\n`);
     return { success: true, metadata: { command: 'list' } };
@@ -131,7 +155,7 @@ async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lea
  * Handles the 'listModels' command by listing available chat models.
  * @param requestId The ID of the request.
  * @param stream The chat response stream to write the model list to.
- * @returns Promise<ICatChatResult> The result of the list models command.
+ * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function listModelsCommand(requestId: string, stream: vscode.ChatResponseStream): Promise<lean4ChatResult> {
     const models = await vscode.lm.selectChatModels();
@@ -166,6 +190,7 @@ async function listModelsCommand(requestId: string, stream: vscode.ChatResponseS
  * @param stream The chat response stream to write the response to.
  * @param token The cancellation token.
  * @param model The language model to use for the chat request.
+ * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function handleChatRequest(
     requestId: string,
@@ -265,7 +290,7 @@ async function handleChatRequest(
 /**
  * Retrieves the current selection location in the active text editor.
  *
- * @returns {vscode.Location | null} The location of the current selection in the active text editor,
+ * @returns The location of the current selection in the active text editor,
  * or null if there is no active text editor.
  */
 function getCurrentSelectionLocation(): vscode.Location | null {
