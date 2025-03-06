@@ -12,7 +12,7 @@
   ],
   "activationEvents": [
     "onCommand:lean4.copilot.listModels",
-    "onCommand:lean4.copilot.testCommand"
+    "onCommand:lean4.copilot.listTools"
   ],
   "extensionDependencies": [
     "github.copilot",
@@ -30,24 +30,34 @@
         "commands": [
           {
             "name": "listModels",
-            "when": "config.lean4.copilot.enabled",
             "description": "List the available LLM models."
           },
           {
             "name": "listTools",
-            "when": "config.lean4.copilot.enabled",
             "description": "List the available Tools for lean4Copilot."
           }
         ]
       }
     ],
+    "languageModelTools": [
+      {
+        "name": "lean4.copilot.listModels",
+        "description": "List the available language models.",
+        "inputSchema": {}
+      },
+      {
+        "name": "lean4.copilot.listTools",
+        "description": "List the available tools.",
+        "inputSchema": {}
+      }
+    ],
     "configuration": {
       "title": "Lean4 Copilot Settings",
       "properties": {
-        "lean4.copilot.enabled": {
+        "lean4.copilot.autoToolUse": {
           "type": "boolean",
           "default": true,
-          "description": "Automatic use of Tools like Loogle."
+          "description": "Enable automatic use of tools like Loogle."
         },
         "lean4.copilot.systemPrompt": {
           "type": "string",
