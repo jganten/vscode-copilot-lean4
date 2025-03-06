@@ -12,7 +12,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
 import { renderPrompt } from '@vscode/prompt-tsx';
-import { ToolCallRound, lean4ChatResult, ToolResultMetadata, lean4UserPrompt, MESSAGE_ROLES } from './lean4Prompt';
+import { ToolCallRound, lean4ChatResult, ToolResultMetadata, NoToolsUserPrompt, toolsUserPrompt, MESSAGE_ROLES } from './lean4Prompt';
 
 export interface TsxToolUserMetadata {
     toolCallsMetadata: ToolCallsMetadata;
@@ -55,6 +55,11 @@ export function registerChatParticipant(context: vscode.ExtensionContext) {
     participant.onDidReceiveFeedback(handleFeedback);
     
     context.subscriptions.push(participant);
+
+    // Register the tools
+    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot.listModels', new ListModelsTool()));
+    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot.listTools', new ListToolsTool()));
+
     return participant;
 }
 
@@ -147,7 +152,8 @@ export async function lean4CopilotChatHandler(
  * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lean4ChatResult> {
-    stream.markdown(`Available tools: ${vscode.lm.tools.map(tool => tool.name).join(', ')}\n\n`);
+    const markdownTable = getToolsMarkdownTable();
+    await stream.markdown(markdownTable);
     return { success: true, metadata: { command: 'list' } };
 }
 
@@ -158,12 +164,37 @@ async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lea
  * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function listModelsCommand(requestId: string, stream: vscode.ChatResponseStream): Promise<lean4ChatResult> {
-    const models = await vscode.lm.selectChatModels();
+    const markdownTable = await getModelsMarkdownTable();
     Logger.info(`[${requestId}] Listing models`);
+    await stream.markdown(markdownTable);
+    return { success: true, metadata: {command : 'listModels'} };
+}
+
+function getToolsMarkdownTable(): string {
+    const tools = vscode.lm.tools;
+
+    // Create the header of the markdown table
+    let tableHeader = '| Name | Description | Input | Tags |\n|---|---|---|---|';
+    let tableRows = '';
+
+    // Add each tool as a row in the table
+    for (const tool of tools) {
+        const name = tool.name;
+        const description = tool.description.substring(0, 50).replace(/[\r\n]+/g, ' ') + '...'; // Truncate and replace newlines
+        const inputSchema = tool.inputSchema ? 'Yes' : 'No';
+        const tags = tool.tags.join(', ') || 'None';
+
+        tableRows += `\n| ${name} | ${description} | ${inputSchema} | ${tags} |`;
+    }
+
+    return `Available tools:\n${tableHeader + tableRows}`;
+}
+
+async function getModelsMarkdownTable(): Promise<string> {
+    const models = await vscode.lm.selectChatModels();
 
     if (models.length === 0) {
-        await stream.markdown('No models available.');
-        return { success: true, metadata: {command : 'listModels'} };
+        return 'No models available.';
     }
 
     // Create the header of the markdown table
@@ -176,10 +207,7 @@ async function listModelsCommand(requestId: string, stream: vscode.ChatResponseS
         tableRows += `\n| ${model.name} | ${maxInputTokens} |`;
     }
 
-    const markdownTable = tableHeader + tableRows;
-    await stream.markdown(`Available models:\n${markdownTable}`);
-
-    return { success: true, metadata: { modelCount: models.length } };
+    return `Available models:\n${tableHeader + tableRows}`;
 }
 
 /**
@@ -208,9 +236,49 @@ async function handleChatRequest(
     console.log(`[${requestId}] Handling chat request...`);
 
     const runWithTools = async (): Promise<lean4ChatResult> => {
+        const config = vscode.workspace.getConfiguration('lean4.copilot');
+        const autoToolUse = config.get<boolean>('autoToolUse', true);
+
+        if (!autoToolUse) {
+            Logger.info(`[${requestId}] Auto tool use disabled, skipping tool calls`);
+
+            // Render the prompt *without* ToolCalls
+            const result = await renderPrompt(
+                NoToolsUserPrompt,
+                {
+                    request: request,
+                    context: chatContext,
+                    toolCallRounds: toolCallRounds,
+                    toolCallResults: accumulatedToolResults
+                },
+                { modelMaxPromptTokens: model.maxInputTokens },
+                model
+            );
+            messages = result.messages;
+
+            result.references.forEach(ref => {
+                if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
+                    stream.reference(ref.anchor);
+                }
+            });
+
+            const response = await model.sendRequest(messages, options, token);
+            let responseStr = '';
+            for await (const part of response.stream) {
+                if (part instanceof vscode.LanguageModelTextPart) {
+                    stream.markdown(part.value);
+                    responseStr += part.value;
+                }
+            }
+            return {
+                success: true,
+                metadata: {}
+            };
+        }
+
         // Render the prompt
         const result = await renderPrompt(
-            lean4UserPrompt,
+            toolsUserPrompt,
             {
                 request: request,
                 context: chatContext,
@@ -441,5 +509,34 @@ export function handleFeedback(feedback: vscode.ChatResultFeedback) {
         default:
             Logger.warn('Unknown feedback type received', feedback);
             break;
+    }
+}
+
+interface ListModelsToolParams {}
+interface ListToolsToolParams {}
+
+class ListModelsTool implements vscode.LanguageModelTool<ListModelsToolParams> {
+    async invoke(): Promise<vscode.LanguageModelToolResult> {
+        const markdownTable = await getModelsMarkdownTable();
+        return { content: [new vscode.ChatResponseMarkdownPart(markdownTable)] };
+    }
+
+    async prepareInvocation(): Promise<vscode.PreparedToolInvocation> {
+        return {
+            invocationMessage: 'Listing available language models.',
+        };
+    }
+}
+
+class ListToolsTool implements vscode.LanguageModelTool<ListToolsToolParams> {
+    async invoke(): Promise<vscode.LanguageModelToolResult> {
+        const markdownTable = getToolsMarkdownTable();
+        return { content: [new vscode.ChatResponseMarkdownPart(markdownTable)] };
+    }
+
+    async prepareInvocation(): Promise<vscode.PreparedToolInvocation> {
+        return {
+            invocationMessage: 'Listing available tools.',
+        };
     }
 }
