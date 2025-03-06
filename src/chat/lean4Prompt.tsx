@@ -60,7 +60,7 @@ export interface lean4ChatResult extends vscode.ChatResult {
     };
 }
 
-export class lean4UserPrompt extends PromptElement<ToolUserProps, void> {
+export class toolsUserPrompt extends PromptElement<ToolUserProps, void> {
 	render(_state: void, _sizing: PromptSizing) {
 		return (
 			<>
@@ -89,6 +89,26 @@ export class lean4UserPrompt extends PromptElement<ToolUserProps, void> {
 					toolCallRounds={this.props.toolCallRounds}
 					toolInvocationToken={this.props.request.toolInvocationToken}
 					toolCallResults={this.props.toolCallResults} />
+			</>
+		);
+	}
+}
+
+export class NoToolsUserPrompt extends PromptElement<ToolUserProps, void> {
+	render(_state: void, _sizing: PromptSizing) {
+		return (
+			<>
+				<UserMessage>
+					Instructions: <br />
+					- The user will ask a question, or ask you to perform a task.  <br />
+					- Answer the user's question. <br />
+				</UserMessage>
+				<History context={this.props.context} priority={10} />
+				<PromptReferences
+					references={this.props.request.references}
+					priority={20}
+				/>
+				<UserMessage>{this.props.request.prompt}</UserMessage>
 			</>
 		);
 	}
