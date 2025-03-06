@@ -1,51 +1,72 @@
 # vscode-copilot-lean4 README
 
-This is the README for your extension "vscode-copilot-lean4". After writing up a brief description, we recommend including the following sections.
+This extension provides the backbone for Copilot extensions for Lean 4 and Mathlib4.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+*   **Chat Interface:** Provides a chat participant that interacts with Language Models to assist with Lean 4 code.
+*   **Command Registration:** Registers commands to list available models and tools.
+*   **Tool Integration:** Supports integration of external tools (like Loogle) to enhance the capabilities of the assistant.
+*   **Configurable System Prompt:** Allows customization of the system prompt to tailor the assistant's behavior.
+*   **Follow-up Suggestions:** Generates follow-up prompts to guide the user in further interactions.
 
-For example if there is an image subfolder under your extension project workspace:
+## Registered Commands
 
-\!\[feature X\]\(images/feature-x.png\)
+*   `lean4.copilot.listModels`: Lists the available Language Models.
+*   `lean4.copilot.testCommand`: A test command (currently outputs a "Hello World" message).
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Registered Tools
+
+Currently, no tools are registered directly within this extension. However, it is designed to integrate with external tools through the Language Model Tooling API.
+
+## Main Logic
+
+The extension's main logic revolves around handling chat requests and responses using Language Models. It involves:
+
+1.  **Receiving Chat Requests:** The `lean4CopilotChatHandler` function processes incoming chat requests.
+2.  **Model Selection:** Selects an appropriate Language Model for the request.
+3.  **Prompt Rendering:** Renders the prompt using `renderPrompt` from `@vscode/prompt-tsx`.
+4.  **Tool Invocation:** If the Language Model requests tool calls, the extension invokes the specified tools and includes the results in subsequent requests.
+5.  **Streaming Responses:** Streams the Language Model's response back to the user.
+6.  **Generating Follow-ups:** Provides follow-up suggestions based on the result of the chat request.
+
+## Implemented Features
+
+*   Basic chat participant registration and handling.
+*   Listing available Language Models.
+*   Configurable system prompt and follow-up prompts.
+*   Tool call handling.
+
+## Missing Features
+
+*   More sophisticated tool integration and management.
+*   Improved error handling and user feedback.
+*   More comprehensive testing and documentation.
+*   Integration with Lean 4 specific tools and APIs.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+*   VS Code version \^1.97.0
+*   `github.copilot` extension
+*   `github.copilot-chat` extension
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+*   `lean4.copilot.enabled`: Enable/disable the automatic use of tools.
+*   `lean4.copilot.systemPrompt`: The system prompt for the chat model.
+*   `lean4.copilot.followUps`: A list of standard follow-up prompts.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+*   No known issues at this time.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+Initial release of the vscode-copilot-lean4 extension.
 
 ---
 
@@ -53,19 +74,19 @@ Added features X, Y, and Z.
 
 Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+*   [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
 
 ## Working with Markdown
 
 You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+*   Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
+*   Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
+*   Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
 
 ## For more information
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+*   [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
+*   [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
 **Enjoy!**
