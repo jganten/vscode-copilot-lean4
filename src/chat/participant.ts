@@ -213,13 +213,6 @@ async function getModelsMarkdownTable(): Promise<string> {
 
 /**
  * Handles a chat request by sending it to the chat model and streaming the response.
- * @param requestId The ID of the request.
- * @param request The chat request to handle.
- * @param chatContext The chat context containing history.
- * @param stream The chat response stream to write the response to.
- * @param token The cancellation token.
- * @param model The language model to use for the chat request.
- * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function handleChatRequest(
     requestId: string,
@@ -229,55 +222,88 @@ async function handleChatRequest(
     token: vscode.CancellationToken,
     model: vscode.LanguageModelChat
 ): Promise<lean4ChatResult> {
+    const config = vscode.workspace.getConfiguration('lean4.copilot');
+    const autoToolUse = config.get<boolean>('autoToolUse', true);
+
+    if (autoToolUse) {
+        return runTools(requestId, request, chatContext, stream, token, model);
+    } else {
+        return runNoTools(requestId, request, chatContext, stream, token, model);
+    }
+}
+
+/**
+ * Handles a chat request without using tools.
+ */
+async function runNoTools(
+    requestId: string,
+    request: vscode.ChatRequest,
+    chatContext: vscode.ChatContext,
+    stream: vscode.ChatResponseStream,
+    token: vscode.CancellationToken,
+    model: vscode.LanguageModelChat
+): Promise<lean4ChatResult> {
+    Logger.info(`[${requestId}] Auto tool use disabled, skipping tool calls`);
     const options: vscode.LanguageModelChatRequestOptions = {};
     const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
     const toolCallRounds: ToolCallRound[] = [];
     let messages: vscode.LanguageModelChatMessage[] = [];
 
-    console.log(`[${requestId}] Handling chat request...`);
+    // Render the prompt *without* ToolCalls
+    const result = await renderPrompt(
+        NoToolsUserPrompt,
+        {
+            request: request,
+            context: chatContext,
+            toolCallRounds: toolCallRounds,
+            toolCallResults: accumulatedToolResults
+        },
+        { modelMaxPromptTokens: model.maxInputTokens },
+        model
+    );
+    messages = result.messages;
 
-    const runWithTools = async (): Promise<lean4ChatResult> => {
-        const config = vscode.workspace.getConfiguration('lean4.copilot');
-        const autoToolUse = config.get<boolean>('autoToolUse', true);
-
-        if (!autoToolUse) {
-            Logger.info(`[${requestId}] Auto tool use disabled, skipping tool calls`);
-
-            // Render the prompt *without* ToolCalls
-            const result = await renderPrompt(
-                NoToolsUserPrompt,
-                {
-                    request: request,
-                    context: chatContext,
-                    toolCallRounds: toolCallRounds,
-                    toolCallResults: accumulatedToolResults
-                },
-                { modelMaxPromptTokens: model.maxInputTokens },
-                model
-            );
-            messages = result.messages;
-
-            result.references.forEach(ref => {
-                if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
-                    stream.reference(ref.anchor);
-                }
-            });
-
-            const response = await model.sendRequest(messages, options, token);
-            let responseStr = '';
-            for await (const part of response.stream) {
-                if (part instanceof vscode.LanguageModelTextPart) {
-                    stream.markdown(part.value);
-                    responseStr += part.value;
-                }
-            }
-            return {
-                success: true,
-                metadata: {}
-            };
+    result.references.forEach(ref => {
+        if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
+            stream.reference(ref.anchor);
         }
+    });
 
-        // Render the prompt
+    const response = await model.sendRequest(messages, options, token);
+    let responseStr = '';
+    for await (const part of response.stream) {
+        if (part instanceof vscode.LanguageModelTextPart) {
+            stream.markdown(part.value);
+            responseStr += part.value;
+        }
+    }
+    return {
+        success: true,
+        metadata: {}
+    };
+}
+
+/**
+ * Handles a chat request with tool usage.
+ */
+async function runTools(
+    requestId: string,
+    request: vscode.ChatRequest,
+    chatContext: vscode.ChatContext,
+    stream: vscode.ChatResponseStream,
+    token: vscode.CancellationToken,
+    model: vscode.LanguageModelChat
+): Promise<lean4ChatResult> {
+
+    Logger.info(`[${requestId}] Auto tool use enabled, starting tool calls`);
+
+    const options: vscode.LanguageModelChatRequestOptions = {};
+    const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
+    const toolCallRounds: ToolCallRound[] = [];
+    let messages: vscode.LanguageModelChatMessage[] = [];
+
+    async function executeToolCallRound(): Promise<lean4ChatResult> {
+        // Render the prompt with tool calls
         const result = await renderPrompt(
             toolsUserPrompt,
             {
@@ -290,7 +316,7 @@ async function handleChatRequest(
             model
         );
         messages = result.messages;
-    
+
         result.references.forEach(ref => {
             if (ref.anchor instanceof vscode.Uri || ref.anchor instanceof vscode.Location) {
                 stream.reference(ref.anchor);
@@ -337,7 +363,7 @@ async function handleChatRequest(
                 }
             }
             // This loops until the model doesn't want to call any more tools, then the request is done.
-            return runWithTools();
+            return executeToolCallRound();
         } else {
             // No tool calls, so we're done
             return {
@@ -347,13 +373,13 @@ async function handleChatRequest(
                     toolCallsMetadata: {
                         toolCallResults: accumulatedToolResults,
                         toolCallRounds
-                    }  satisfies ToolCallsMetadata,
+                    } satisfies ToolCallsMetadata,
                 }
             };
         }
-    };
+    }
 
-    return await runWithTools();
+    return await executeToolCallRound();
 }
 
 /**

@@ -39,6 +39,16 @@
         ]
       }
     ],
+  "commands": [
+    {
+      "command": "lean4.copilot_listModelsCommand",
+      "title": "List Lean 4 Copilot Models"
+    },
+    {
+      "command": "lean4.copilot_listToolsCommand",
+      "title": "List Lean 4 Copilot Tools"
+    }
+  ],
     "languageModelTools": [
       {
         "name": "lean4.copilot.listModels",
