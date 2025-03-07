@@ -57,7 +57,7 @@
         "lean4.copilot.autoToolUse": {
           "type": "boolean",
           "default": true,
-          "description": "Enable automatic use of tools like Loogle."
+          "description": "Automatic use of Tools like Loogle."
         },
         "lean4.copilot.systemPrompt": {
           "type": "string",
