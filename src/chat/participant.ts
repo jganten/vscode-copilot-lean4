@@ -35,6 +35,12 @@ export function isTsxToolUserMetadata(obj: unknown): obj is TsxToolUserMetadata 
         Array.isArray((obj as TsxToolUserMetadata).toolCallsMetadata.toolCallRounds);
 }
 
+export function registerLean4Tools(context: vscode.ExtensionContext) {
+    Logger.info('Registering Lean 4 tools');
+    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot_listModels', new ListModelsTool()));
+    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot_listTools', new ListToolsTool()));
+}
+
 /**
  * Registers the chat participant with VS Code.
  * @param context The extension context.
@@ -55,11 +61,6 @@ export function registerChatParticipant(context: vscode.ExtensionContext) {
     participant.onDidReceiveFeedback(handleFeedback);
     
     context.subscriptions.push(participant);
-
-    // Register the tools
-    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot.listModels', new ListModelsTool()));
-    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot.listTools', new ListToolsTool()));
-
     return participant;
 }
 
