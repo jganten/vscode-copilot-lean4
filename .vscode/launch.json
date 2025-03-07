@@ -16,6 +16,25 @@
 				"${workspaceFolder}/dist/**/*.js"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
+		},
+
+		{
+			"name": "Debug Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--require source-map-support/register"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"preLaunchTask": "${defaultBuildTask}",
+			"postDebugTask": "cleanupTask",
+			"sourceMaps": true,
+			"console": "integratedTerminal",
+			"internalConsoleOptions": "openOnSessionStart",
+			"preLaunchTask": "npm: test"
 		}
 	]
 }
