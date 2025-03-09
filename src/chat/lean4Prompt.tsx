@@ -127,24 +127,32 @@ const dummyCancellationToken: vscode.CancellationToken = new vscode.Cancellation
  */
 class ToolCalls extends PromptElement<ToolCallsProps, void> {
 	async render(_state: void, _sizing: PromptSizing) {
+		Logger.info("ToolCalls.render: this.props", this.props); // Added logging
 		if (!this.props.toolCallRounds.length) {
 			return undefined;
 		}
 
 		// Note- for the copilot models, the final prompt must end with a non-tool-result UserMessage
+		Logger.info("ToolCalls.render: Mapping toolCallRounds"); // Added logging
+		const renderedRounds = this.props.toolCallRounds.map(round => this.renderOneToolCallRound(round));
+		Logger.info("ToolCalls.render: Mapped toolCallRounds", renderedRounds); // Added logging
 		return <>
-			{this.props.toolCallRounds.map(round => this.renderOneToolCallRound(round))}
+			{renderedRounds}
 			<UserMessage>Above is the result of calling one or more tools. The user cannot see the results, so you should explain them to the user if referencing them in your answer.</UserMessage>
 		</>;
 	}
 
 	private renderOneToolCallRound(round: ToolCallRound) {
+		Logger.info("ToolCalls.renderOneToolCallRound: round", round); // Added logging
 		const assistantToolCalls: ToolCall[] = round.toolCalls.map(tc => ({ type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.input) }, id: tc.callId }));
+		Logger.info("ToolCalls.renderOneToolCallRound: Mapping toolCalls"); // Added logging
+		const renderedToolCalls = round.toolCalls.map(toolCall =>
+			<ToolResultElement toolCall={toolCall} toolInvocationToken={this.props.toolInvocationToken} toolCallResult={this.props.toolCallResults[toolCall.callId]} />);
+		Logger.info("ToolCalls.renderOneToolCallRound: Mapped toolCalls", renderedToolCalls); // Added logging
 		return (
 			<Chunk>
 				<AssistantMessage toolCalls={assistantToolCalls}>{round.response}</AssistantMessage>
-				{round.toolCalls.map(toolCall =>
-					<ToolResultElement toolCall={toolCall} toolInvocationToken={this.props.toolInvocationToken} toolCallResult={this.props.toolCallResults[toolCall.callId]} />)}
+				{renderedToolCalls}
 			</Chunk>);
 	}
 }
@@ -171,8 +179,16 @@ class ToolResultElement extends PromptElement<ToolResultElementProps, void> {
 			countTokens: async (content: string) => sizing.countTokens(content),
 		};
 
-		const toolResult = this.props.toolCallResult ??
-			await vscode.lm.invokeTool(this.props.toolCall.name, { input: this.props.toolCall.input, toolInvocationToken: this.props.toolInvocationToken, tokenizationOptions }, dummyCancellationToken);
+		Logger.info("ToolResultElement.render: Before invokeTool", { toolCall: this.props.toolCall }); // Added logging
+		let toolResult: vscode.LanguageModelToolResult | undefined;
+		try {
+			toolResult = this.props.toolCallResult ??
+				await vscode.lm.invokeTool(this.props.toolCall.name, { input: this.props.toolCall.input, toolInvocationToken: this.props.toolInvocationToken, tokenizationOptions }, dummyCancellationToken);
+			Logger.info("ToolResultElement.render: After invokeTool", { toolResult }); // Added logging
+		} catch (error) {
+			Logger.error("ToolResultElement.render: Error invoking tool", { toolCall: this.props.toolCall.name, error });
+			return <ToolMessage toolCallId={this.props.toolCall.callId}>Error invoking tool: {this.props.toolCall.name}</ToolMessage>;
+		}
 
 		return (
 			<ToolMessage toolCallId={this.props.toolCall.callId}>
