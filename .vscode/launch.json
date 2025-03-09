@@ -17,7 +17,6 @@
 			],
 			"preLaunchTask": "${defaultBuildTask}"
 		},
-
 		{
 			"name": "Debug Extension",
 			"type": "extensionHost",
@@ -29,10 +28,7 @@
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"
 			],
-			"preLaunchTask": "${defaultBuildTask}",
-			"postDebugTask": "cleanupTask",
 			"sourceMaps": true,
-			"console": "integratedTerminal",
 			"internalConsoleOptions": "openOnSessionStart",
 			"preLaunchTask": "npm: test"
 		}

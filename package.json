@@ -1,6 +1,6 @@
 {
   "name": "vscode-copilot-lean4",
-  "displayName": "vscode-copilot-lean4",
+  "displayName": "Lean 4 Copilot",
   "description": "This extension provides the backbone for Copilot extensions for Lean 4 and Mathlib4.",
   "version": "0.0.1",
   "publisher": "jganten",
@@ -8,11 +8,14 @@
     "vscode": "^1.97.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages",
+    "Data Science",
+    "Mathematics"
   ],
   "activationEvents": [
-    "onCommand:lean4.copilot.listModels",
-    "onCommand:lean4.copilot.listTools"
+    "onCommand:lean4-copilot.listModels",
+    "onCommand:lean4-copilot.listTools",
+    "onChatParticipant:lean4.copilot"
   ],
   "extensionDependencies": [
     "github.copilot",
@@ -39,25 +42,31 @@
         ]
       }
     ],
-  "commands": [
-    {
-      "command": "lean4.copilot_listModelsCommand",
-      "title": "List Lean 4 Copilot Models"
-    },
-    {
-      "command": "lean4.copilot_listToolsCommand",
-      "title": "List Lean 4 Copilot Tools"
-    }
-  ],
+    "commands": [
+      {
+        "command": "lean4-copilot.listModelsCommand",
+        "title": "List Lean 4 Copilot Models"
+      },
+      {
+        "command": "lean4-copilot.listToolsCommand",
+        "title": "List Lean 4 Copilot Tools"
+      }
+    ],
     "languageModelTools": [
       {
-        "name": "lean4.copilot.listModels",
-        "description": "List the available language models.",
+        "name": "lean4-copilot-listModels",
+        "tags": ["lean4", "copilot"],
+        "toolReferenceName": "listModels",
+        "displayName": "List Models",
+        "modelDescription": "List the available language models.",
         "inputSchema": {}
       },
       {
-        "name": "lean4.copilot.listTools",
-        "description": "List the available tools.",
+        "name": "lean4-copilot-listTools",
+        "tags": ["lean4", "copilot"],
+        "toolReferenceName": "listTools",
+        "displayName": "List Tools",
+        "modelDescription": "List the available tools.",
         "inputSchema": {}
       }
     ],
@@ -110,6 +119,7 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^5.7.3",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/prompt-tsx": "^0.3.0-alpha.12"
   }
 }
