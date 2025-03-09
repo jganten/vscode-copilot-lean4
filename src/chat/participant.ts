@@ -37,8 +37,12 @@ export function isTsxToolUserMetadata(obj: unknown): obj is TsxToolUserMetadata 
 
 export function registerLean4Tools(context: vscode.ExtensionContext) {
     Logger.info('Registering Lean 4 tools');
-    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot_listModels', new ListModelsTool()));
-    context.subscriptions.push(vscode.lm.registerTool('lean4.copilot_listTools', new ListToolsTool()));
+    const listModelsTool = new ListModelsTool();
+    const listToolsTool = new ListToolsTool();
+    context.subscriptions.push(vscode.lm.registerTool('lean4-copilot-listModels', listModelsTool));
+    context.subscriptions.push(vscode.lm.registerTool('lean4-copilot-listTools', listToolsTool));
+    Logger.info(`Registered tool: lean4-copilot-listModels`, listModelsTool);
+    Logger.info(`Registered tool: lean4-copilot-listTools`, listToolsTool);
 }
 
 /**
@@ -153,7 +157,9 @@ export async function lean4CopilotChatHandler(
  * @returns A promise that resolves to a `lean4ChatResult`.
  */
 async function listToolsCommand(stream: vscode.ChatResponseStream) : Promise<lean4ChatResult> {
+    Logger.info('listToolsCommand called');
     const markdownTable = getToolsMarkdownTable();
+    Logger.info('markdownTable:', markdownTable);
     await stream.markdown(markdownTable);
     return { success: true, metadata: { command: 'list' } };
 }
