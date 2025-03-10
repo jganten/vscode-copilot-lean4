@@ -282,6 +282,8 @@ async function runNoTools(
     const toolCallRounds: ToolCallRound[] = [];
     let messages: vscode.LanguageModelChatMessage[] = [];
 
+    const { systemPrompt, toolUseInstructions } = getLean4CopilotSettings();
+
     // Render the prompt *without* ToolCalls
     const result = await renderPrompt(
         NoToolsUserPrompt,
@@ -289,7 +291,9 @@ async function runNoTools(
             request: request,
             context: chatContext,
             toolCallRounds: toolCallRounds,
-            toolCallResults: accumulatedToolResults
+            toolCallResults: accumulatedToolResults,
+            systemPrompt: systemPrompt,
+            toolUseInstructions: toolUseInstructions // Pass even though it's not used
         },
         { modelMaxPromptTokens: model.maxInputTokens },
         model
@@ -310,10 +314,10 @@ async function runNoTools(
             responseStr += part.value;
         }
     }
-    return {
-        success: true,
+        return {
+            success: true,
         metadata: {}
-    };
+        };
 }
 
 /**
@@ -335,6 +339,8 @@ async function runTools(
     const toolCallRounds: ToolCallRound[] = [];
     let messages: vscode.LanguageModelChatMessage[] = [];
 
+    const { systemPrompt, toolUseInstructions } = getLean4CopilotSettings();
+
     async function executeToolCallRound(): Promise<lean4ChatResult> {
         // Render the prompt with tool calls
         const result = await renderPrompt(
@@ -343,7 +349,9 @@ async function runTools(
                 request: request,
                 context: chatContext,
                 toolCallRounds: toolCallRounds,
-                toolCallResults: accumulatedToolResults
+                toolCallResults: accumulatedToolResults,
+                systemPrompt: systemPrompt,
+                toolUseInstructions: toolUseInstructions
             },
             { modelMaxPromptTokens: model.maxInputTokens },
             model
@@ -429,45 +437,6 @@ function getCurrentSelectionLocation(): vscode.Location | null {
     }
 
     return null;
-}
-
-/**
- * Gets the system prompt for the chat model from settings.
- * @returns A LanguageModelChatMessage representing the system prompt.
- */
-function getSystemPrompt(): vscode.LanguageModelChatMessage {
-    const config = vscode.workspace.getConfiguration('lean4.copilot');
-    const defaultPrompt = 'You are a helpful math assistant for the lean4 theorem prover!';
-    const systemPrompt = config.get<string>('systemPrompt', defaultPrompt);
-    
-    if (systemPrompt === defaultPrompt) {
-        Logger.warn('Using fallback system prompt');
-    }
-    
-    return vscode.LanguageModelChatMessage.User(systemPrompt, MESSAGE_ROLES.SYSTEM);
-}
-
-/**
- * Adds references from the request to the response stream.
- * 
- * This function iterates over the references in the given request and adds them to the response stream.
- * If a reference has an ID of 'copilot.selection', it retrieves the current selection location and adds it to the stream.
- * 
- * @param request - The chat request containing references to be added.
- * @param stream - The chat response stream to which references will be added.
- */
-function addReferencesToResponse(request: vscode.ChatRequest, stream: vscode.ChatResponseStream) {
-    // Add the explicit refererences passed as references
-    for (const ref of request.references) {
-        const reference: any = ref; // Cast to any, to get the name property, it's not in the type
-        if (reference.id === 'copilot.selection') {  // Inplicit references are of type copilot.selection
-
-            const location = getCurrentSelectionLocation();
-            if (location) {
-                stream.reference(location);
-            }
-        }
-    }
 }
 
 /**
