@@ -239,6 +239,33 @@ async function handleChatRequest(
 }
 
 /**
+ * Retrieves the Lean4 Copilot settings from the VS Code configuration.
+ * @returns An object containing the system prompt and tool use instructions.
+ */
+function getLean4CopilotSettings(): { systemPrompt: string; toolUseInstructions: string } {
+    const config = vscode.workspace.getConfiguration('lean4.copilot');
+    const fallbackToolUseInstructions = 'Use tools to help answer the question.';
+    const fallbackSystemPrompt = 'You are a helpful assistant.';
+    
+    const systemPrompt = config.get<string>(
+        'systemPrompt',
+        fallbackSystemPrompt
+    );
+    const toolUseInstructions = config.get<string>(
+        'toolUseInstructions',
+        fallbackToolUseInstructions
+    );
+
+    if (systemPrompt === fallbackSystemPrompt) {
+        Logger.warn('Using fallback system prompt');
+    }
+    if (toolUseInstructions === fallbackToolUseInstructions) {
+        Logger.warn('Using fallback tool use instructions');
+    }
+    return { systemPrompt, toolUseInstructions };
+}
+
+/**
  * Handles a chat request without using tools.
  */
 async function runNoTools(
