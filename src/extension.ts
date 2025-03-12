@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { registerChatParticipant, registerLean4Tools } from './chat/participant';
+import { registerChatParticipant } from './chat/participant';
 
 /**
  * This method is called when your extension is activated.
@@ -10,9 +10,6 @@ import { registerChatParticipant, registerLean4Tools } from './chat/participant'
  */
 export function activate(context: vscode.ExtensionContext) {
     console.log('Congratulations, your extension "vscode-copilot-lean4" is now active!');
-
-    // Register tools
-    registerLean4Tools(context);
     
     // Register chat participant
     registerChatParticipant(context);
