@@ -12,7 +12,7 @@
 import * as vscode from 'vscode';
 import { Logger } from '../utils/logging';
 import { renderPrompt } from '@vscode/prompt-tsx';
-import { ToolCallRound, lean4ChatResult, ToolResultMetadata, NoToolsUserPrompt, toolsUserPrompt, MESSAGE_ROLES } from './lean4Prompt';
+import { ToolCallRound, lean4ChatResult, ToolUserPrompt, NoToolsUserPrompt, MESSAGE_ROLES } from './lean4Prompt';
 
 export interface TsxToolUserMetadata {
     toolCallsMetadata: ToolCallsMetadata;
@@ -55,14 +55,16 @@ export function registerChatParticipant(context: vscode.ExtensionContext) {
     
     const participant = vscode.chat.createChatParticipant('lean4.copilot', lean4CopilotChatHandler);
     participant.iconPath = vscode.Uri.joinPath(context.extensionUri, 'images', 'lean4CopilotIcon.png');
-    
+
+    const lean4ChatFollowupProvider = { provideFollowups: generateFollowups };
     // Add followup provider
-    participant.followupProvider = {
-        provideFollowups: generateFollowups
-    };
+    participant.followupProvider = lean4ChatFollowupProvider;
+
+    // Register tools
+    registerLean4Tools(context);
 
     // Register feedback handler
-    participant.onDidReceiveFeedback(handleFeedback);
+    // participant.onDidReceiveFeedback(handleFeedback);
     
     context.subscriptions.push(participant);
     return participant;
@@ -242,7 +244,7 @@ async function handleChatRequest(
  * Retrieves the Lean4 Copilot settings from the VS Code configuration.
  * @returns An object containing the system prompt and tool use instructions.
  */
-function getLean4CopilotSettings(): { systemPrompt: string; toolUseInstructions: string } {
+export function getLean4CopilotSettings(): { systemPrompt: string; toolUseInstructions: string } {
     const config = vscode.workspace.getConfiguration('lean4.copilot');
     const fallbackToolUseInstructions = 'Use tools to help answer the question.';
     const fallbackSystemPrompt = 'You are a helpful assistant.';
@@ -282,8 +284,6 @@ async function runNoTools(
     const toolCallRounds: ToolCallRound[] = [];
     let messages: vscode.LanguageModelChatMessage[] = [];
 
-    const { systemPrompt, toolUseInstructions } = getLean4CopilotSettings();
-
     // Render the prompt *without* ToolCalls
     const result = await renderPrompt(
         NoToolsUserPrompt,
@@ -292,8 +292,6 @@ async function runNoTools(
             context: chatContext,
             toolCallRounds: toolCallRounds,
             toolCallResults: accumulatedToolResults,
-            systemPrompt: systemPrompt,
-            toolUseInstructions: toolUseInstructions // Pass even though it's not used
         },
         { modelMaxPromptTokens: model.maxInputTokens },
         model
@@ -334,24 +332,24 @@ async function runTools(
 
     Logger.info(`[${requestId}] Auto tool use enabled, starting tool calls`);
 
-    const options: vscode.LanguageModelChatRequestOptions = {};
+    const options: vscode.LanguageModelChatRequestOptions = {
+        toolMode: vscode.LanguageModelChatToolMode.Required,
+    };
+    
+
     const accumulatedToolResults: Record<string, vscode.LanguageModelToolResult> = {};
     const toolCallRounds: ToolCallRound[] = [];
     let messages: vscode.LanguageModelChatMessage[] = [];
 
-    const { systemPrompt, toolUseInstructions } = getLean4CopilotSettings();
-
     async function executeToolCallRound(): Promise<lean4ChatResult> {
         // Render the prompt with tool calls
         const result = await renderPrompt(
-            toolsUserPrompt,
+            ToolUserPrompt,
             {
                 request: request,
                 context: chatContext,
                 toolCallRounds: toolCallRounds,
                 toolCallResults: accumulatedToolResults,
-                systemPrompt: systemPrompt,
-                toolUseInstructions: toolUseInstructions
             },
             { modelMaxPromptTokens: model.maxInputTokens },
             model
@@ -363,6 +361,8 @@ async function runTools(
                 stream.reference(ref.anchor);
             }
         });
+
+        // 
 
         // Send the request to the LanguageModelChat
         const response = await model.sendRequest(messages, options, token);
