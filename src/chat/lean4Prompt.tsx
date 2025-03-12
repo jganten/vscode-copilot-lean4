@@ -15,7 +15,7 @@ import {
 } from '@vscode/prompt-tsx';
 import { ToolResult } from '@vscode/prompt-tsx/dist/base/promptElements';
 import * as vscode from 'vscode';
-import { isTsxToolUserMetadata } from './participant';
+import { isTsxToolUserMetadata, getLean4CopilotSettings } from './participant';
 import { Logger } from '../utils/logging';
 
 /**
@@ -60,24 +60,18 @@ export interface lean4ChatResult extends vscode.ChatResult {
     };
 }
 
-export class toolsUserPrompt extends PromptElement<ToolUserProps, void> {
+/**
+ * Composing of a ToolUserPrompt, which is a prompt that includes tool calls and their results.
+ * 
+ */
+export class ToolUserPrompt extends PromptElement<ToolUserProps, void> {
 	render(_state: void, _sizing: PromptSizing) {
+		const { systemPrompt, toolUseInstructions } = getLean4CopilotSettings();
 		return (
 			<>
 				<UserMessage>
-					Instructions: <br />
-					- The user will ask a question, or ask you to perform a task, and it may
-					require lots of research to answer correctly. There is a selection of
-					tools that let you perform actions or retrieve helpful context to answer
-					the user's question. <br />
-					- If you aren't sure which tool is relevant, you can call multiple
-					tools. You can call tools repeatedly to take actions or gather as much
-					context as needed until you have completed the task fully. Don't give up
-					unless you are sure the request cannot be fulfilled with the tools you
-					have. <br />
-					- Don't make assumptions about the situation- gather context first, then
-					perform the task or answer the question. <br />
-					- Don't ask the user for confirmation to use tools, just use them.
+					{systemPrompt}
+					{toolUseInstructions}
 				</UserMessage>
 				<History context={this.props.context} priority={10} />
 				<PromptReferences
@@ -96,12 +90,11 @@ export class toolsUserPrompt extends PromptElement<ToolUserProps, void> {
 
 export class NoToolsUserPrompt extends PromptElement<ToolUserProps, void> {
 	render(_state: void, _sizing: PromptSizing) {
+		const { systemPrompt } = getLean4CopilotSettings();
 		return (
 			<>
 				<UserMessage>
-					Instructions: <br />
-					- The user will ask a question, or ask you to perform a task.  <br />
-					- Answer the user's question. <br />
+					{systemPrompt} <br />
 				</UserMessage>
 				<History context={this.props.context} priority={10} />
 				<PromptReferences
